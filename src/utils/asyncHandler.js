@@ -1,5 +1,6 @@
 const asyncHandler = (requestHandler) => {
     return (req, res, next) => {
+        // requestHandler function ko Promise mein resolve karein, aur agar koi error aata hai toh use next() ke saath bhejein
         Promise.resolve(requestHandler(req, res, next)).catch((err) => next(err))
     }
 }
