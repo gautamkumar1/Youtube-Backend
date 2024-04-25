@@ -185,6 +185,8 @@ const loginUser = asyncHandler(async (req, res) => {
         )
     )
 });
+
+
 /*
   * / / / / / / / / / / / / / /
  * LOGOUT LOGIC
@@ -278,6 +280,27 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       // Koi error aaye toh use catch karein aur error throw karein
       throw new ApiError(401, error?.message || "Invalid refresh token")
   }
+})
+
+/*
+  * / / / / / / / / / / / / / /
+ * CHANGE USER CURRENT PASSWORD
+ *  / / / / / / / / / / / / / /
+ */
+
+const changeUserCurrentPassword = asyncHandler(async (req, res) => {
+    const {oldPassword, newPassword} = req.body;
+    const user = await User.findById(req.user?._id)
+    const isPasswordValid = await user.isPasswordCorrect(oldPassword)
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid old password")
+    }
+    user.password = newPassword
+    await user.save({validateBeforeSave:false})
+
+    return res
+     .status(200)
+     .json(new ApiResponse(200, {}, "Password changed successfully"))
 })
 
 export { registerUser, loginUser ,logoutUser};
