@@ -5,7 +5,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 /*
  * / / / / / / / / / / / / / /
- * GENERATE ACCESS AND REFRESH TOKE
+ * GENERATE ACCESS AND REFRESH TOKEN - LOGIN CONTROLLER
  *  / / / / / / / / / / / / / /
  */
 const generateAccessAndRefreshTokens = async (userId) => {
