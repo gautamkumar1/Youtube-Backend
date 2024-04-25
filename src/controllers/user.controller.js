@@ -262,7 +262,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       }
   
       // Naya access token aur refresh token generate karein
-      const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id)
+      const { accessToken, newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
   
       // Success response bhejein aur cookies set karein
       return res
@@ -297,10 +297,10 @@ const changeUserCurrentPassword = asyncHandler(async (req, res) => {
     }
     user.password = newPassword
     await user.save({validateBeforeSave:false})
-
+ 
     return res
-     .status(200)
-     .json(new ApiResponse(200, {}, "Password changed successfully"))
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"))
 })
 
 /*
@@ -418,5 +418,162 @@ const updateUserCoverImage = asyncHandler(async(req, res) => {
       new ApiResponse(200, user, "Cover image updated successfully")
   )
 })
-export { registerUser, loginUser ,logoutUser,changeUserCurrentPassword,getCurrentUser,updateAccountDetails,updateUserAvatar,updateUserCoverImage};
+
+/*
+  * / / / / / / / / / / / / / /
+ * get user channel profile
+ *  / / / / / / / / / / / / / /
+ */
+
+const getUserChannelProfile = asyncHandler(async(req, res) => {
+  const {username} = req.params
+
+  // Agar username khali hai ya undefined hai
+  if (!username?.trim()) {
+      throw new ApiError(400, "username is missing")
+  }
+
+  // Daryaft karne ke liye channel ko database se
+  const channel = await User.aggregate([
+      {
+          $match: {
+              // Username ko case-insensitive banane ke liye
+              username: username?.toLowerCase()
+          }
+      },
+      {
+          $lookup: {
+              // subscriptions se data leke aaye, subscribers ko
+              from: "subscriptions",
+              localField: "_id",
+              foreignField: "channel",
+              as: "subscribers"
+          }
+      },
+      {
+          $lookup: {
+              // subscriptions se data leke aaye, jo subscriber hai
+              from: "subscriptions",
+              localField: "_id",
+              foreignField: "subscriber",
+              as: "subscribedTo"
+          }
+      },
+      {
+          $addFields: {
+              // subscribers ka size nikala
+              subscribersCount: {
+                  $size: "$subscribers"
+              },
+              // subscribedTo ka size nikala
+              channelsSubscribedToCount: {
+                  $size: "$subscribedTo"
+              },
+              // User ke pass channel ka subscription hai ya nahi
+              isSubscribed: {
+                  $cond: {
+                      if: {$in: [req.user?._id, "$subscribers.subscriber"]},
+                      then: true,
+                      else: false
+                  }
+              }
+          }
+      },
+      {
+          $project: {
+              // Zaroori fields ko select kiya
+              fullName: 1,
+              username: 1,
+              subscribersCount: 1,
+              channelsSubscribedToCount: 1,
+              isSubscribed: 1,
+              avatar: 1,
+              coverImage: 1,
+              email: 1
+          }
+      }
+  ])
+
+  // Agar channel maujood nahi hai
+  if (!channel?.length) {
+      throw new ApiError(404, "channel does not exists")
+  }
+
+  // Response bheja gaya
+  return res
+  .status(200)
+  .json(
+      new ApiResponse(200, channel[0], "User channel fetched successfully")
+  )
+})
+
+/*
+  * / / / / / / / / / / / / / /
+ * get watch history
+ *  / / / / / / / / / / / / / /
+ */
+
+const getWatchHistory = asyncHandler(async(req, res) => {
+  // User ki watch history ko daryaft karna
+  const user = await User.aggregate([
+      {
+          $match: {
+              // User ka ID ke saath match karna
+              _id: new mongoose.Types.ObjectId(req.user._id)
+          }
+      },
+      {
+          $lookup: {
+              // Videos se watch history ko leke aana
+              from: "videos",
+              localField: "watchHistory",
+              foreignField: "_id",
+              as: "watchHistory",
+              pipeline: [
+                  {
+                      $lookup: {
+                          // Owners ka data leke aana
+                          from: "users",
+                          localField: "owner",
+                          foreignField: "_id",
+                          as: "owner",
+                          pipeline: [
+                              {
+                                  $project: {
+                                      // Zaroori fields ko select karna
+                                      fullName: 1,
+                                      username: 1,
+                                      avatar: 1
+                                  }
+                              }
+                          ]
+                      }
+                  },
+                  {
+                      $addFields:{
+                          // Owner ko pehla element banake rakhna
+                          owner:{
+                              $first: "$owner"
+                          }
+                      }
+                  }
+              ]
+          }
+      }
+  ])
+
+  // Response bhejna
+  return res
+  .status(200)
+  .json(
+      new ApiResponse(
+          200,
+          user[0].watchHistory,
+          "Watch history fetched successfully"
+      )
+  )
+})
+
+export { registerUser, loginUser ,logoutUser,changeUserCurrentPassword,
+  getCurrentUser,updateAccountDetails,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory,refreshAccessToken};
 
